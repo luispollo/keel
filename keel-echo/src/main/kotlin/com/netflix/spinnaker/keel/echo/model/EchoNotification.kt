@@ -66,10 +66,22 @@ data class EchoNotification(
   ) :
     InteractiveAction("button", name, value)
 
-  data class InteractiveActionCallback(
-    val actionPerformed: InteractiveAction,
-    val serviceId: String,
-    val messageId: String,
-    val user: String
+  abstract class InteractionCallback(
+    open val serviceId: String,
+    open val user: String
   )
+
+  data class InteractiveActionCallback(
+    override val serviceId: String,
+    override val user: String,
+    val actionPerformed: InteractiveAction,
+    val messageId: String
+  ) : InteractionCallback(serviceId, user)
+
+  data class CommandCallback(
+    override val serviceId: String,
+    override val user: String,
+    val command: String,
+    val arguments: String
+  ) : InteractionCallback(serviceId, user)
 }
