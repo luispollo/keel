@@ -15,7 +15,6 @@ import com.netflix.spinnaker.keel.core.api.EnvironmentArtifactPin
 import com.netflix.spinnaker.keel.core.api.EnvironmentArtifactVetoes
 import com.netflix.spinnaker.keel.core.api.EnvironmentSummary
 import com.netflix.spinnaker.keel.core.api.PinnedEnvironment
-import com.netflix.spinnaker.keel.core.api.ResourceSummary
 import com.netflix.spinnaker.keel.core.api.SubmittedDeliveryConfig
 import com.netflix.spinnaker.keel.core.api.UID
 import com.netflix.spinnaker.keel.core.api.normalize
@@ -24,6 +23,7 @@ import com.netflix.spinnaker.keel.events.ArtifactRegisteredEvent
 import com.netflix.spinnaker.keel.events.ResourceEvent
 import com.netflix.spinnaker.keel.exceptions.DuplicateArtifactReferenceException
 import com.netflix.spinnaker.keel.exceptions.DuplicateResourceIdException
+import com.netflix.spinnaker.keel.pause.ActuationPauser
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -48,9 +48,10 @@ import org.springframework.transaction.annotation.Transactional
 class CombinedRepository(
   val deliveryConfigRepository: DeliveryConfigRepository,
   val artifactRepository: ArtifactRepository,
-  val resourceRepository: ResourceRepository,
+  override val resourceRepository: ResourceRepository,
   override val clock: Clock,
-  override val publisher: ApplicationEventPublisher
+  override val publisher: ApplicationEventPublisher,
+  override val actuationPauser: ActuationPauser
 ) : KeelRepository {
 
   override val log by lazy { LoggerFactory.getLogger(javaClass) }
@@ -312,9 +313,6 @@ class CombinedRepository(
   override fun getResourcesByApplication(application: String): List<Resource<*>> =
     resourceRepository.getResourcesByApplication(application)
 
-  override fun getResourceSummaries(deliveryConfig: DeliveryConfig): List<ResourceSummary> =
-    resourceRepository.getResourceSummaries(deliveryConfig)
-
   override fun storeResource(resource: Resource<*>) =
     resourceRepository.store(resource)
 
@@ -333,7 +331,10 @@ class CombinedRepository(
   override fun resourceLastEvent(id: String): ResourceEvent? =
     resourceRepository.lastEvent(id)
 
-  override fun resourceAppendHistory(event: ResourceEvent) =
+  override fun appendResourceHistory(event: ResourceEvent) =
+    resourceRepository.appendHistory(event)
+
+  override fun appendApplicationHistory(event: ApplicationEvent) =
     resourceRepository.appendHistory(event)
 
   override fun resourcesDueForCheck(minTimeSinceLastCheck: Duration, limit: Int): Collection<Resource<out ResourceSpec>> =
@@ -342,8 +343,6 @@ class CombinedRepository(
   override fun artifactsDueForCheck(minTimeSinceLastCheck: Duration, limit: Int): Collection<DeliveryArtifact> =
     artifactRepository.itemsDueForCheck(minTimeSinceLastCheck, limit)
 
-  override fun getResourceStatus(id: String): ResourceStatus =
-    resourceRepository.getStatus(id)
   // END ResourceRepository methods
 
   // START ArtifactRepository methods
